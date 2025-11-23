@@ -1,0 +1,52 @@
+{
+  "name": "zeid_bot",
+  "version": "1.0.7-beta",
+  "description": "Chatbot Zalo Node.js dựa trên ZCA-JS.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "zalo",
+    "chatbot",
+    "nodejs",
+    "zeid-bot"
+  ],
+  "author": "ShinTHL09, NLam182",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shinchan0911/Zeid_Bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Shinchan0911/Zeid_Bot/issues"
+  },
+  "homepage": "https://github.com/Shinchan0911/Zeid_Bot#readme",
+  "dependencies": {
+    "axios": "^1.11.0",
+    "better-sqlite3": "^12.2.0",
+    "canvas": "^3.1.2",
+    "chalk": "^4.1.2",
+    "cheerio": "^1.1.2",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.3",
+    "fs-extra": "^11.3.0",
+    "get-video-info": "^1.0.0",
+    "jimp": "^0.16.1",
+    "jsqr": "^1.4.0",
+    "luxon": "^3.7.1",
+    "moment-timezone": "^0.6.0",
+    "node-schedule": "^2.1.1",
+    "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
+    "semver": "^7.7.2",
+    "string-similarity": "^4.0.4",
+    "yaml": "^2.8.0",
+    "zca-js": "latest"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -1,0 +1,23 @@
+account_file: "account.json" # file chứa thông tin login
+
+# cấu hình login bằng qrcode
+login_qrcode: true # tự động chuyển sang qrcode login khi cookie không thể login
+qrcode_path: "qr.png" # ảnh qrcode
+save_cookie: true # tư động lưu lại cookie sau khi đăng nhập bắng qrcode xong
+
+# cấu hình bot
+prefix: "/"
+name_bot: "bot tự code cưucj lỏ"
+# sử dụng lệnh /id để lấy id
+# chú ý: mỗi acc chạy bot get info sẽ ra 1 id khác nhau nên nếu đổi acc chạy bot phải đổi id (do zalỏ lưu data ở local)
+admin_bot:
+  - "4977998388121318924"
+  - "126026046603679910"
+support_bot:
+allow_private_command: true # có cho bot nhận lệnh từ tin nhắn riêng hay không
+  
+# cấu hình của zca-js
+zca_js_config:
+  selfListen: true
+  checkUpdate: true
+  logging: true
