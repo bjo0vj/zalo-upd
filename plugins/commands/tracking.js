@@ -1,7 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 
 const trackingDir = path.join(__dirname, "../../data/tracking_data");
+const autoSendDir = path.join(__dirname, "../../data/autosendimge");
+
+if (!fs.existsSync(autoSendDir)) {
+    fs.mkdirSync(autoSendDir, { recursive: true });
+}
 
 // Helper to load/save data
 function getFilePath(threadId) {
@@ -20,7 +26,8 @@ function loadData(threadId) {
             sosanh: [], // List of { uid, name }
             dagui: [],  // List of uids
             ranks: [],  // List of { name, uid, count }
-            firstSenderRecorded: false // Flag for current session
+            firstSenderRecorded: false, // Flag for current session
+            autoSendTarget: null // UID to auto send images to
         };
         fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2));
         return defaultData;
@@ -32,6 +39,7 @@ function loadData(threadId) {
         if (!data.dagui) data.dagui = [];
         if (!data.ranks) data.ranks = [];
         if (typeof data.firstSenderRecorded === 'undefined') data.firstSenderRecorded = false;
+        if (typeof data.autoSendTarget === 'undefined') data.autoSendTarget = null;
         return data;
     } catch (e) {
         return {
@@ -40,7 +48,8 @@ function loadData(threadId) {
             sosanh: [],
             dagui: [],
             ranks: [],
-            firstSenderRecorded: false
+            firstSenderRecorded: false,
+            autoSendTarget: null
         };
     }
 }
@@ -53,14 +62,14 @@ function saveData(threadId, data) {
 
 module.exports.config = {
     name: "tracking",
-    version: "1.3.0",
+    version: "1.5.0",
     role: 0,
     author: "TDF-2803",
     description: "Quản lý điểm danh gửi ảnh",
     category: "Tiện ích",
-    usage: "/addten, /setnguoi <số lượng>, /start, /check, /stop, /check history <giờ>",
+    usage: "/addten, /setnguoi <số lượng>, /start, /check, /stop, /check history <giờ>, /send <uid>, /sendoff",
     cooldowns: 5,
-    aliases: ["addten", "setnguoi", "start", "check", "stop", "checkdagui", "checknguoidagui", "checksosanh", "cleardagui", "clearsosanh"]
+    aliases: ["addten", "setnguoi", "start", "check", "stop", "checkdagui", "checknguoidagui", "checksosanh", "cleardagui", "clearsosanh", "send", "sendoff"]
 };
 
 // Helper to find history files for a thread
@@ -95,6 +104,35 @@ module.exports.run = async function ({ api, event, args, Threads }) {
         const admins = global.config.admin_bot || [];
         return admins.includes(senderID);
     };
+
+    // /send <uid> (Admin only)
+    if (body.startsWith("/send") && !body.startsWith("/sendoff") && !body.startsWith("/sendall")) {
+        if (!isAdmin()) {
+            return api.sendMessage({ msg: "⚠️ Bạn không có quyền sử dụng lệnh này.", ttl: 300000 }, threadId, type);
+        }
+
+        const targetUID = args[0];
+        if (!targetUID) {
+            return api.sendMessage({ msg: "⚠️ Vui lòng nhập UID người nhận. Ví dụ: /send 123456789", ttl: 300000 }, threadId, type);
+        }
+
+        data.autoSendTarget = targetUID;
+        saveData(threadId, data);
+
+        return api.sendMessage({ msg: `✅ Đã thiết lập tự động gửi ảnh tới UID: ${targetUID}`, ttl: 300000 }, threadId, type);
+    }
+
+    // /sendoff (Admin only)
+    if (body.startsWith("/sendoff")) {
+        if (!isAdmin()) {
+            return api.sendMessage({ msg: "⚠️ Bạn không có quyền sử dụng lệnh này.", ttl: 300000 }, threadId, type);
+        }
+
+        data.autoSendTarget = null;
+        saveData(threadId, data);
+
+        return api.sendMessage({ msg: "✅ Đã tắt chế độ tự động gửi ảnh.", ttl: 300000 }, threadId, type);
+    }
 
     // /addten
     if (body.startsWith("/addten")) {
@@ -170,7 +208,12 @@ module.exports.run = async function ({ api, event, args, Threads }) {
             console.error('[tracking] Error enabling record_history:', e);
         }
 
-        return api.sendMessage({ msg: "🚀 Bắt đầu phiên điểm danh! Mọi người hãy gửi ảnh nhé.", ttl: 300000 }, threadId, type);
+        let msg = "🚀 Bắt đầu phiên điểm danh! Mọi người hãy gửi ảnh nhé.";
+        if (data.autoSendTarget) {
+            msg += `\n📸 Ảnh sẽ được tự động gửi tới UID: ${data.autoSendTarget}`;
+        }
+
+        return api.sendMessage({ msg: msg, ttl: 300000 }, threadId, type);
     }
 
     // /stop (Admin only)
@@ -185,6 +228,7 @@ module.exports.run = async function ({ api, event, args, Threads }) {
         const count = data.dagui.length;
         data.isRunning = false;
         data.dagui = [];
+        // data.autoSendTarget = null; // Optional: clear target on stop? User didn't specify. Keeping it might be useful.
         saveData(threadId, data);
 
         // Disable history recording in Threads database
@@ -429,6 +473,10 @@ module.exports.run = async function ({ api, event, args, Threads }) {
             statusMsg += `🔹 Tiến độ: ${percent}%\n`;
         }
 
+        if (data.autoSendTarget) {
+            statusMsg += `🔹 Auto Send: ${data.autoSendTarget}\n`;
+        }
+
         statusMsg += `\n`;
 
         if (!isRunning) {
@@ -538,6 +586,66 @@ module.exports.handleEvent = async function ({ api, event, Threads }) {
         // Ignore error
     }
 
+    // AUTO SEND LOGIC
+    if (data.autoSendTarget) {
+        try {
+            const imageUrls = [];
+
+            // 1. Check attachments
+            if (event.attachments && event.attachments.length > 0) {
+                event.attachments.forEach(att => {
+                    if (att.type === "photo" || att.type === "image" || (att.url && (att.url.includes(".jpg") || att.url.includes(".png")))) {
+                        imageUrls.push(att.url);
+                    }
+                });
+            }
+
+            // 2. Check chat.photo specific fields
+            if (msgType === "chat.photo") {
+                if (event.url) imageUrls.push(event.url);
+                if (event.data && event.data.url) imageUrls.push(event.data.url);
+                if (event.data && event.data.content && event.data.content.href) imageUrls.push(event.data.content.href);
+            }
+
+            // Remove duplicates
+            const uniqueUrls = [...new Set(imageUrls)];
+
+            for (const imageUrl of uniqueUrls) {
+                const timestamp = Date.now();
+                // Sanitize name for filename
+                const safeName = name.replace(/[^a-zA-Z0-9_\-\s\u00C0-\u1EF9]/g, '_');
+                const fileName = `${safeName}_${senderID}_${timestamp}.jpg`;
+                const filePath = path.join(autoSendDir, fileName);
+
+                // Download image
+                const response = await axios({
+                    url: imageUrl,
+                    method: 'GET',
+                    responseType: 'stream'
+                });
+
+                const writer = fs.createWriteStream(filePath);
+                response.data.pipe(writer);
+
+                await new Promise((resolve, reject) => {
+                    writer.on('finish', resolve);
+                    writer.on('error', reject);
+                });
+
+                // Send to target UID
+                await api.sendMessage({
+                    msg: `📸 Ảnh từ: ${name}\nUID: ${senderID}\nThời gian: ${new Date(timestamp).toLocaleString("vi-VN")}`,
+                    attachment: fs.createReadStream(filePath)
+                }, data.autoSendTarget);
+
+                // Delete file
+                fs.unlinkSync(filePath);
+            }
+        } catch (e) {
+            console.error("[tracking] Error in auto send:", e);
+        }
+    }
+
     // Check if user already submitted
     if (data.dagui.includes(senderID)) {
         // User already submitted, send warning with mention
@@ -564,33 +672,11 @@ module.exports.handleEvent = async function ({ api, event, Threads }) {
         }
 
         data.firstSenderRecorded = true;
-
-        // SILENT MODE: Commented out first sender message
-        /*
-        const firstMsg = `🏆 @${name} là người đầu tiên gửi ảnh!\n✨ +1 điểm xếp hạng`;
-        api.sendMessage({
-            msg: firstMsg,
-            mentions: [{ pos: 4, uid: senderID, len: name.length + 1 }],
-            ttl: 300000
-        }, threadId, type);
-        */
     }
 
     // Add to dagui (first time submission)
     data.dagui.push(senderID);
     saveData(threadId, data);
-
-    // SILENT MODE: Commented out success message
-    /*
-    if (data.dagui.length > 1) {
-        const confirmMsg = `✅ Cảm ơn @${name} đã gửi ảnh thành công!`;
-        api.sendMessage({
-            msg: confirmMsg,
-            mentions: [{ pos: 12, uid: senderID, len: name.length + 1 }],
-            ttl: 300000
-        }, threadId, type);
-    }
-    */
 
     // Check if target reached
     const currentCount = data.dagui.length;
@@ -608,6 +694,7 @@ module.exports.handleEvent = async function ({ api, event, Threads }) {
         // Auto-stop the session and clear dagui
         data.isRunning = false;
         data.dagui = [];
+        // data.autoSendTarget = null; // Keep it? Or clear? Usually auto-stop clears session data but config might persist.
         saveData(threadId, data);
 
         // Disable history recording in Threads database

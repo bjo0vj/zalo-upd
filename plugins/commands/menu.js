@@ -63,7 +63,9 @@ module.exports.run = async function ({ api, event, args, Threads }) {
         msg += "15. /accpectuse <uid> - Mở cấm dùng bot\n";
         msg += "16. /delete all chat all mem - Xóa toàn bộ tin nhắn\n";
         msg += "17. /sendall <nội dung> - Gửi tin nhắn cho tất cả thành viên\n";
-        msg += "18. /admin - Quản lý Admin/Support\n";
+        msg += "18. /send <uid> - Tự động gửi ảnh tới UID\n";
+        msg += "19. /sendoff - Tắt tự động gửi ảnh\n";
+        msg += "20. /admin - Quản lý Admin/Support\n";
 
         return api.sendMessage({ msg: msg, ttl: 120000 }, threadId, type);
     }
