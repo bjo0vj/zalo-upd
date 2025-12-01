@@ -19,10 +19,10 @@ const semver = require("semver");
         });
 
         child.on("close", (code) => {
-            if (code === 2) {
-                logger.log(`Khởi động lại...`, "warn");
+            logger.log(`Bot đã dừng với mã thoát: ${code}. Đang khởi động lại sau 5 giây...`, "warn");
+            setTimeout(() => {
                 startProject();
-            }
+            }, 5000);
         });
     }
 
